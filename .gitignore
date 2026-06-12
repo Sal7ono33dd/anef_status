@@ -1,0 +1,18 @@
+# Android/Gradle build outputs
+**/.gradle/
+**/build/
+**/local.properties
+**/*.aab
+**/*.apk
+
+# Local IDE/system files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs/temp
+*.log
+tmp/
+temp/

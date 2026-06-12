@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ANEF Status</title>
+    <style>
+      :root {
+        --navy: #062f63;
+        --navy-2: #0b4f8f;
+        --bg: #f3f7fc;
+        --panel: #ffffff;
+        --text: #082047;
+        --muted: #64748b;
+        --line: #e4ecf5;
+        --blue: #0b5aa8;
+        --blue-soft: #e8f3ff;
+        --red: #dc143c;
+        --shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 366px;
+        max-height: 600px;
+        margin: 0;
+        overflow-y: auto;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+
+      .app {
+        min-height: 100%;
+        background: linear-gradient(180deg, #edf5ff 0, #f8fbff 100%);
+      }
+
+      .topbar {
+        height: 92px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 16px 22px;
+        background: var(--navy);
+        color: #ffffff;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      .version {
+        padding: 4px 7px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.14);
+        color: #cfe3ff;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 8px;
+      }
+
+      .icon-btn {
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+        cursor: pointer;
+      }
+
+      .icon-btn svg,
+      .copy-btn svg,
+      .action svg,
+      .tile svg {
+        width: 17px;
+        height: 17px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .content {
+        padding: 20px 16px 18px;
+      }
+
+      .status-card {
+        margin-top: 0;
+        padding: 20px;
+        border-radius: 14px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .status-head {
+        display: grid;
+        grid-template-columns: 54px 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .status-icon {
+        width: 54px;
+        height: 54px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: #082c5d;
+        color: #ffffff;
+        box-shadow: inset 0 -4px 0 var(--red);
+      }
+
+      .status-icon svg {
+        width: 28px;
+        height: 28px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .status-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--text);
+      }
+
+      .status-step {
+        margin: 3px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .code-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .code-pill {
+        max-width: 230px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding: 8px 12px;
+        border: 1px solid #b9d5f2;
+        border-radius: 999px;
+        background: var(--blue-soft);
+        color: #07376f;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .copy-btn {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        background: transparent;
+        color: #8aa0bc;
+        cursor: pointer;
+      }
+
+      .description {
+        margin: 16px 0 16px;
+        min-height: 72px;
+        color: #18345c;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .progress-track {
+        position: relative;
+        height: 10px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #d8e2ee;
+      }
+
+      .progress-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #07376f, #0b5aa8);
+      }
+
+      .progress-marker {
+        position: absolute;
+        top: 0;
+        left: 0%;
+        width: 78px;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--red);
+        transform: translateX(-50%);
+      }
+
+      .progress-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+        color: #8a93aa;
+        font-size: 11px;
+      }
+
+      .meta-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 18px;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+      }
+
+      .meta-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 12px;
+      }
+
+      .meta-label {
+        color: #42526d;
+      }
+
+      .meta-value {
+        color: #021b43;
+        font-weight: 800;
+        text-align: right;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 16px 0;
+      }
+
+      .action {
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 0;
+        border-radius: 10px;
+        background: #f7fbff;
+        color: #18345c;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+      }
+
+      .action.primary {
+        background: linear-gradient(165deg, #06376f, #074b8d);
+        color: #ffffff;
+      }
+
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+
+      .tile {
+        min-height: 92px;
+        padding: 12px 8px;
+        border-radius: 10px;
+        background: #ffffff;
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+        text-align: center;
+      }
+
+      .tile svg {
+        color: #6c63d9;
+        margin-bottom: 7px;
+      }
+
+      .tile-label {
+        margin: 0;
+        color: #42526d;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .tile-value {
+        margin: 6px 0 0;
+        color: #021b43;
+        font-size: 13px;
+        font-weight: 900;
+        line-height: 1.25;
+      }
+
+      .result {
+        min-height: 18px;
+        margin-top: 10px;
+        color: #64748b;
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .result.ok {
+        color: #166534;
+      }
+
+      .result.error {
+        color: #b91c1c;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span>ANEF Status</span>
+          <span id="version-pill" class="version">v2.9.24</span>
+        </div>
+        <div class="toolbar">
+          <button id="eye-btn" class="icon-btn" type="button" title="Afficher le code">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+          <button id="settings-btn" class="icon-btn" type="button" title="Tester notification">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7.1 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"></path></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="content">
+        <article class="status-card">
+          <div class="status-head">
+            <div class="status-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18"></path><path d="M5 10l7-5 7 5"></path><path d="M6 10v8"></path><path d="M10 10v8"></path><path d="M14 10v8"></path><path d="M18 10v8"></path><path d="M4 18h16"></path><path d="M3 21h18"></path></svg>
+            </div>
+            <div>
+              <h1 id="status-title" class="status-title">Chargement...</h1>
+              <p id="status-step" class="status-step">Etape -/12</p>
+            </div>
+          </div>
+
+          <div class="code-row">
+            <span id="status-code" class="code-pill">CODE INCONNU</span>
+            <button id="copy-btn" class="copy-btn" type="button" title="Copier le code">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+          </div>
+
+          <p id="status-desc" class="description">Lecture du dernier statut local...</p>
+
+          <div class="progress-track" aria-hidden="true">
+            <div id="progress-fill" class="progress-fill"></div>
+            <div id="progress-marker" class="progress-marker"></div>
+          </div>
+          <div class="progress-labels">
+            <span>Depot</span>
+            <span>Decret</span>
+          </div>
+
+          <div class="meta-list">
+            <div class="meta-line">
+              <span class="meta-label">Statut depuis</span>
+              <span id="status-since" class="meta-value">-</span>
+            </div>
+            <div class="meta-line">
+              <span class="meta-label">Derniere MAJ</span>
+              <span id="last-sync" class="meta-value">-</span>
+            </div>
+          </div>
+        </article>
+
+        <div class="actions">
+          <button id="refresh-btn" class="action primary" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12A9 9 0 0 1 18.5 5.8"></path><path d="M18 2v4h4"></path><path d="M6 22v-4H2"></path></svg>
+            Actualiser
+          </button>
+          <button id="rex-btn" class="action" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="M8.6 10.7 15.4 6.3"></path><path d="M8.6 13.3l6.8 4.4"></path></svg>
+            Mon REX
+          </button>
+        </div>
+
+        <section class="tiles">
+          <article class="tile">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18"></path></svg>
+            <p class="tile-label">Depot</p>
+            <p id="tile-depot" class="tile-value">-</p>
+          </article>
+          <article class="tile">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"></path></svg>
+            <p class="tile-label">Entretien</p>
+            <p id="tile-entretien" class="tile-value">-</p>
+          </article>
+          <article class="tile">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l3 2"></path><path d="M9 2h6"></path></svg>
+            <p class="tile-label">Au statut depuis</p>
+            <p id="tile-statut" class="tile-value">-</p>
+          </article>
+        </section>
+
+        <div id="result" class="result"></div>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
