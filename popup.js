@@ -1,5 +1,5 @@
 (function () {
-  const EXTENSION_VERSION = "2.9.24";
+  const EXTENSION_VERSION = "3.0";
 
   const versionPill = document.getElementById("version-pill");
   const statusTitleEl = document.getElementById("status-title");
@@ -18,10 +18,16 @@
   const copyBtn = document.getElementById("copy-btn");
   const eyeBtn = document.getElementById("eye-btn");
   const settingsBtn = document.getElementById("settings-btn");
+  const settingsPanel = document.getElementById("settings-panel");
+  const alertsToggle = document.getElementById("alerts-toggle");
+  const alertsDetailEl = document.getElementById("alerts-detail");
+  const alertStatusEl = document.getElementById("alert-status");
+  const alertsStatusEl = document.getElementById("alerts-status");
   const resultEl = document.getElementById("result");
 
   let currentCode = "";
   let codeVisible = true;
+  let alertsEnabled = true;
 
   const statusTitles = {
     draft: "Brouillon",
@@ -132,6 +138,18 @@
     return String(value).replace(/\s*\((manual|alarm|page|force)\)/i, "");
   }
 
+  function renderAlerts(enabled) {
+    alertsEnabled = enabled !== false;
+    alertsToggle.checked = alertsEnabled;
+    alertsDetailEl.textContent = alertsEnabled
+      ? "Verification automatique activee toutes les 15 minutes."
+      : "Alertes desactivees. Actualisation manuelle uniquement.";
+    alertsStatusEl.textContent = alertsEnabled
+      ? "Verification auto activee"
+      : "Alertes desactivees";
+    alertStatusEl.classList.toggle("off", !alertsEnabled);
+  }
+
   function renderState(state) {
     const code = state.lastKnownStatusCode || "code_non_reconnu";
     const description = state.lastKnownStatusDescription || "";
@@ -152,6 +170,7 @@
     tileDepotEl.textContent = compactDate(state.lastKnownStatusDateLabel || "-");
     tileEntretienEl.textContent = stage.value >= 6 ? "En cours" : "A venir";
     tileStatutEl.textContent = compactDate(state.lastKnownStatusDateLabel || "-");
+    renderAlerts(state.alertsEnabled !== false);
   }
 
   async function loadState({ silent }) {
@@ -187,13 +206,35 @@
     }
   }
 
-  async function testNotification() {
-    setResult("Test notification...");
+  function toggleSettings() {
+    const shouldOpen = settingsPanel.hasAttribute("hidden");
+    settingsPanel.hidden = !shouldOpen;
+    settingsBtn.setAttribute("aria-expanded", String(shouldOpen));
+  }
+
+  async function updateAlertsSetting() {
+    const nextValue = alertsToggle.checked;
+    const previousValue = alertsEnabled;
+    renderAlerts(nextValue);
+    setResult("Enregistrement des parametres...");
+
     try {
-      const response = await chrome.runtime.sendMessage({ type: "ANF_TEST_NOTIFICATION" });
-      setResult(response?.ok ? "Notification envoyee." : "Notification refusee.", response?.ok ? "ok" : "error");
+      const response = await chrome.runtime.sendMessage({
+        type: "ANF_SET_ALERTS_ENABLED",
+        payload: { enabled: nextValue },
+      });
+      if (!response?.ok) throw new Error(response?.error || "Echec parametres");
+
+      renderAlerts(response.settings?.alertsEnabled !== false);
+      setResult(
+        response.settings?.alertsEnabled !== false
+          ? "Alertes activees."
+          : "Alertes desactivees.",
+        "ok"
+      );
     } catch (_error) {
-      setResult("Notification impossible.", "error");
+      renderAlerts(previousValue);
+      setResult("Parametres impossibles a enregistrer.", "error");
     }
   }
 
@@ -210,7 +251,8 @@
 
   versionPill.textContent = `v${EXTENSION_VERSION}`;
   refreshBtn.addEventListener("click", forceSync);
-  settingsBtn.addEventListener("click", testNotification);
+  settingsBtn.addEventListener("click", toggleSettings);
+  alertsToggle.addEventListener("change", updateAlertsSetting);
   copyBtn.addEventListener("click", copyCode);
   eyeBtn.addEventListener("click", toggleCode);
   rexBtn.addEventListener("click", () => setResult("Mon REX arrive bientot.", "ok"));

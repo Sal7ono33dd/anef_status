@@ -1,27 +1,20 @@
 ﻿{
   "manifest_version": 3,
   "name": "Statut API du Dossier Naturalisation",
-  "version": "2.9.24",
+  "version": "3.0",
   "description": "Statut API du Dossier Naturalisation",
   "permissions": [
-    "scripting",
-    "activeTab",
     "alarms",
-    "notifications",
     "storage"
   ],
   "host_permissions": [
-    "https://administration-etrangers-en-france.interieur.gouv.fr/*",
-    "https://sso.anef.dgef.interieur.gouv.fr/*",
-    "https://franceconnect.gouv.fr/*",
-    "https://*.franceconnect.gouv.fr/*",
-    "https://*.impots.gouv.fr/*"
+    "https://administration-etrangers-en-france.interieur.gouv.fr/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Suivi Naturalisation (sync + notifications)",
+    "default_title": "Suivi Naturalisation",
     "default_popup": "popup.html"
   },
   "content_scripts": [
@@ -33,19 +26,6 @@
         "inject.js"
       ],
       "run_at": "document_end"
-    },
-    {
-      "matches": [
-        "https://administration-etrangers-en-france.interieur.gouv.fr/*",
-        "https://sso.anef.dgef.interieur.gouv.fr/*",
-        "https://franceconnect.gouv.fr/*",
-        "https://*.franceconnect.gouv.fr/*",
-        "https://*.impots.gouv.fr/*"
-      ],
-      "js": [
-        "auth-automation.js"
-      ],
-      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [

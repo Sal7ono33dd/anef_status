@@ -10,7 +10,7 @@
   };
 
   // Extension version from manifest.json
-  const extensionVersion = "2.9.24";
+  const extensionVersion = "3.0";
   console.log(`Extension API Naturalisation - Version: ${extensionVersion}`);
 
   // Fonction de décryptage dédiée à Kamal : Round 2
@@ -928,7 +928,7 @@
 
     const statusVisual = getStatusVisual(dossierStatusCode);
 
-    // Push latest status to extension background worker for notifications/sync state.
+    // Push latest status to extension background worker for sync state.
     function pushStatusToBackground() {
       try {
         window.postMessage(

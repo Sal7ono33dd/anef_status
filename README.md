@@ -1,15 +1,15 @@
 <h1>Installation </h1>
 
-<h2>Nouveautés v2.9.24</h2>
+<h2>Nouveautés v3.0</h2>
 
 <ul>
-  <li>Synchronisation automatique en arrière-plan (toutes les 15 minutes).</li>
-  <li>Notification quotidienne de suivi.</li>
-  <li>Notification immédiate quand un changement de statut est détecté.</li>
-  <li>Notification dédiée quand la session ANEF expire, puis confirmation quand la session est reconnectée.</li>
-  <li>Détection renforcée de session expirée (même si ANEF répond en page login/HTML).</li>
-  <li>Fallback visuel sur l'icône de l'extension en cas de session expirée ou erreur de synchro.</li>
-  <li>Bouton <strong>Tester notification</strong> dans le popup de l'extension (utile sur Brave).</li>
+  <li>Version 3.0 du popup ANEF Status.</li>
+  <li>Suppression du test notification et des notifications navigateur.</li>
+  <li>Suppression de l'auto-connexion Impots/FranceConnect et des permissions associees.</li>
+  <li>Bouton parametres transforme en reglage Alertes activees/desactivees.</li>
+  <li>Ajout du lien officiel en bas du popup: https://letranger-dev.github.io/anef-extension/.</li>
+  <li>Synchronisation automatique en arriere-plan uniquement quand les alertes sont activees.</li>
+  <li>Fallback visuel sur l'icone de l'extension en cas de session expiree ou erreur de synchro.</li>
   <li>Icônes de statut dans la frise plus lisibles et plus explicatives.</li>
   <li>Recréation automatique de l'onglet de suivi naturalisation quand l'ANEF ne l'affiche plus.</li>
   <li>Icônes intégrées pour chaque étape de la frise recréée.</li>
@@ -28,7 +28,7 @@
   <li>Ajout du bloc "Suivi de ma demande" avec numéro de demande, type, timbre fiscal, dernière sauvegarde et affichage masqué par icône œil.</li>
   <li>Correction: si l'onglet ANEF "Accès à la Nationalité Française" existe, l'extension le remplace au lieu d'ajouter un doublon.</li>
   <li>Ajout de l'œil afficher/masquer sur la préfecture de l'entretien d'assimilation.</li>
-  <li>Sécurité: suppression des identifiants FranceConnect codés en dur et désactivation de l'auto-login par défaut.</li>
+  <li>Securite: suppression complete de l'auto-login FranceConnect/Impots.</li>
 </ul>
 
 Vidéo tutorielle sur YouTube (je ne suis pas le propriétaire des chaînes) : 
@@ -37,7 +37,7 @@ FR : <a href="https://www.youtube.com/watch?v=WhW91uf_bVI">https://www.youtube.c
 
 AR : <a href="https://www.youtube.com/watch?v=vaitOnjyNFQ">https://www.youtube.com/watch?v=vaitOnjyNFQ</a>
 
-1. Télécharger le <a href="https://github.com/Sal7ono33dd/anef_status/releases/tag/2.9.24"> fichier ZIP </a> , décompress le zip pour obtenir le dossier
+1. Télécharger le <a href="https://github.com/Sal7ono33dd/anef_status/releases/tag/3.0"> fichier ZIP </a> , décompress le zip pour obtenir le dossier
 
 
 2. Rend-toi sur : chrome://extensions

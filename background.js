@@ -1,18 +1,14 @@
 ﻿const CONFIG = {
-  ANEF_HOME_URL: "https://administration-etrangers-en-france.interieur.gouv.fr/",
-  ANEF_LOGIN_URL:
-    "https://sso.anef.dgef.interieur.gouv.fr/auth/realms/anef-usagers/protocol/openid-connect/auth?client_id=anef-usagers&theme=portail-anef&redirect_uri=https%3A%2F%2Fadministration-etrangers-en-france.interieur.gouv.fr%2Fparticuliers%2F%23&response_mode=fragment&response_type=code&scope=openid",
   API_ENDPOINT:
     "https://administration-etrangers-en-france.interieur.gouv.fr/api/anf/dossier-stepper",
   STATUS_SYNC_ALARM: "anf-status-sync",
-  HOURLY_RECAP_ALARM: "anf-hourly-recap",
+  LEGACY_HOURLY_RECAP_ALARM: "anf-hourly-recap",
   LEGACY_DAILY_ALARM: "anf-daily-notification",
   STATUS_SYNC_INTERVAL_MINUTES: 15,
-  HOURLY_RECAP_INTERVAL_MINUTES: 60,
-  AUTH_REMINDER_COOLDOWN_MINUTES: 360,
-  AUTO_LOGIN_COOLDOWN_MINUTES: 30,
   SYNC_HISTORY_LIMIT: 200,
 };
+
+const DEFAULT_ALERTS_ENABLED = true;
 
 const DB_CONFIG = {
   NAME: "anf_local_status_db",
@@ -23,20 +19,13 @@ const DB_CONFIG = {
   },
 };
 
-const AUTO_LOGIN_ENV_DEFAULTS = {
-  autoLoginEnabled: false,
-  envFranceConnectFiscalNumber: "",
-  envFranceConnectPassword: "",
-};
-
 const STORAGE_KEYS = [
+  "alertsEnabled",
   "lastSyncAt",
   "lastSyncTrigger",
   "lastSyncState",
   "lastSyncError",
   "authState",
-  "lastAuthNotificationAt",
-  "lastAuthRecoveryNotificationAt",
   "lastKnownStatus",
   "lastKnownStatusDate",
   "lastKnownStatusCode",
@@ -44,13 +33,13 @@ const STORAGE_KEYS = [
   "lastKnownDossierId",
   "lastStatusChangeAt",
   "lastStatusChangeReason",
-  "lastStatusChangeNotificationAt",
-  "lastNotifiedSnapshotSignature",
+  "lastStatusAlertAt",
+  "lastAlertedSnapshotSignature",
   "lastNoUpdateAt",
   "noUpdateStreak",
-  "lastHourlyRecapAt",
-  "lastHourlyRecapState",
-  "lastHourlyRecapMessage",
+];
+
+const LEGACY_STORAGE_KEYS = [
   "autoLoginEnabled",
   "envFranceConnectFiscalNumber",
   "envFranceConnectPassword",
@@ -61,6 +50,13 @@ const STORAGE_KEYS = [
   "lastAutoLoginReason",
   "lastAutoLoginTabId",
   "lastAutoLoginEventAt",
+  "lastAuthNotificationAt",
+  "lastAuthRecoveryNotificationAt",
+  "lastStatusChangeNotificationAt",
+  "lastNotifiedSnapshotSignature",
+  "lastHourlyRecapAt",
+  "lastHourlyRecapState",
+  "lastHourlyRecapMessage",
 ];
 
 let dbPromise;
@@ -98,13 +94,6 @@ function normalizeEncryptedStatus(value) {
   return String(value || "").trim();
 }
 
-function maskSensitive(value, keepLast = 3) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (text.length <= keepLast) return "*".repeat(text.length);
-  return `${"*".repeat(text.length - keepLast)}${text.slice(-keepLast)}`;
-}
-
 function buildSnapshotId(dossierId) {
   return dossierId ? `dossier:${dossierId}` : "dossier:default";
 }
@@ -116,36 +105,49 @@ function buildSnapshotSignature(snapshot) {
   return `enc:${normalizeEncryptedStatus(snapshot?.encryptedStatus)}`;
 }
 
-function shouldSendReminder(lastIso, cooldownMinutes) {
-  if (!lastIso) return true;
-  const last = new Date(lastIso).getTime();
-  if (Number.isNaN(last)) return true;
-  return Date.now() - last >= cooldownMinutes * 60 * 1000;
+function alertsEnabledFromStorage(storage) {
+  return storage?.alertsEnabled !== false;
 }
 
-function createNotification(id, title, message) {
-  return chrome.notifications
-    .create(id, {
-      type: "basic",
-      iconUrl: "icons/icon128.png",
-      title,
-      message,
-      priority: 2,
-    })
-    .catch((error) => {
-      console.log(
-        "Extension API Naturalisation : notification bloquee/inactive",
-        error?.message || String(error)
-      );
-      return null;
-    });
+async function ensureAlertDefaults() {
+  const storage = await chrome.storage.local.get(["alertsEnabled"]);
+  if (typeof storage.alertsEnabled !== "boolean") {
+    await chrome.storage.local.set({ alertsEnabled: DEFAULT_ALERTS_ENABLED });
+  }
+}
+
+async function cleanupLegacyStorage() {
+  await chrome.storage.local.remove(LEGACY_STORAGE_KEYS).catch(() => {
+    // ignore
+  });
+}
+
+async function getAlertsEnabled() {
+  const storage = await chrome.storage.local.get(["alertsEnabled"]);
+  return alertsEnabledFromStorage(storage);
+}
+
+async function setAlertsEnabled(enabled) {
+  const alertsEnabled = Boolean(enabled);
+  await chrome.storage.local.set({ alertsEnabled });
+  await ensureAlarms();
+  if (!alertsEnabled) clearBadge();
+  return { alertsEnabled };
+}
+
+function setStatusChangeBadge() {
+  chrome.action.setBadgeText({ text: "!" });
+  chrome.action.setBadgeBackgroundColor({ color: "#0b5aa8" });
+  chrome.action.setTitle({
+    title: "Nouveau statut detecte dans le suivi naturalisation",
+  });
 }
 
 function setAuthExpiredBadge() {
   chrome.action.setBadgeText({ text: "!" });
   chrome.action.setBadgeBackgroundColor({ color: "#b91c1c" });
   chrome.action.setTitle({
-    title: "Session ANEF expiree: reconnexion FranceConnect en cours",
+    title: "Session ANEF expiree: reconnecte-toi sur ANEF",
   });
 }
 
@@ -160,7 +162,7 @@ function setSyncErrorBadge() {
 function clearBadge() {
   chrome.action.setBadgeText({ text: "" });
   chrome.action.setTitle({
-    title: "Suivi Naturalisation (sync + notifications)",
+    title: "Suivi Naturalisation",
   });
 }
 
@@ -263,97 +265,6 @@ async function getRecentSyncHistory(limit = 6) {
   });
 }
 
-async function ensureAutoLoginEnvDefaults() {
-  const stored = await chrome.storage.local.get([
-    "autoLoginEnabled",
-    "envFranceConnectFiscalNumber",
-    "envFranceConnectPassword",
-  ]);
-  const updates = {};
-  if (typeof stored.autoLoginEnabled !== "boolean") {
-    updates.autoLoginEnabled = AUTO_LOGIN_ENV_DEFAULTS.autoLoginEnabled;
-  }
-  if (!stored.envFranceConnectFiscalNumber) {
-    updates.envFranceConnectFiscalNumber =
-      AUTO_LOGIN_ENV_DEFAULTS.envFranceConnectFiscalNumber;
-  }
-  if (!stored.envFranceConnectPassword) {
-    updates.envFranceConnectPassword = AUTO_LOGIN_ENV_DEFAULTS.envFranceConnectPassword;
-  }
-  if (Object.keys(updates).length > 0) {
-    await chrome.storage.local.set(updates);
-  }
-}
-
-async function startAutoLoginAttempt(reason) {
-  const nowIso = new Date().toISOString();
-  const storage = await chrome.storage.local.get(STORAGE_KEYS);
-  const enabled = storage.autoLoginEnabled !== false;
-  const fiscalNumber = String(storage.envFranceConnectFiscalNumber || "").trim();
-  const password = String(storage.envFranceConnectPassword || "");
-
-  if (!enabled || !fiscalNumber || !password) {
-    await chrome.storage.local.set({
-      lastAutoLoginAttemptAt: nowIso,
-      lastAutoLoginStatus: "skipped",
-      lastAutoLoginStep: "missing_env",
-      lastAutoLoginError: "Auto login disabled or env missing.",
-      lastAutoLoginReason: reason,
-      lastAutoLoginEventAt: nowIso,
-    });
-    return { started: false, reason: "missing_env" };
-  }
-
-  if (
-    !shouldSendReminder(
-      storage.lastAutoLoginAttemptAt,
-      CONFIG.AUTO_LOGIN_COOLDOWN_MINUTES
-    )
-  ) {
-    await chrome.storage.local.set({
-      lastAutoLoginStatus: "cooldown",
-      lastAutoLoginStep: "cooldown",
-      lastAutoLoginError: "Auto login cooldown active.",
-      lastAutoLoginReason: reason,
-      lastAutoLoginEventAt: nowIso,
-    });
-    return { started: false, reason: "cooldown" };
-  }
-
-  try {
-    const tab = await chrome.tabs.create({
-      url: CONFIG.ANEF_LOGIN_URL,
-      active: false,
-    });
-    await chrome.storage.local.set({
-      lastAutoLoginAttemptAt: nowIso,
-      lastAutoLoginStatus: "started",
-      lastAutoLoginStep: "open_anef",
-      lastAutoLoginError: "",
-      lastAutoLoginReason: reason,
-      lastAutoLoginTabId: tab?.id ?? null,
-      lastAutoLoginEventAt: nowIso,
-    });
-    await createNotification(
-      `anf-autologin-start-${Date.now()}`,
-      "ANEF: reconnexion automatique",
-      "Tentative via FranceConnect en cours."
-    );
-    return { started: true };
-  } catch (error) {
-    const errorMessage = error?.message || String(error);
-    await chrome.storage.local.set({
-      lastAutoLoginAttemptAt: nowIso,
-      lastAutoLoginStatus: "error",
-      lastAutoLoginStep: "open_anef_failed",
-      lastAutoLoginError: errorMessage,
-      lastAutoLoginReason: reason,
-      lastAutoLoginEventAt: nowIso,
-    });
-    return { started: false, reason: "tab_open_error", error: errorMessage };
-  }
-}
-
 function mergeSnapshot(previousSnapshot, incomingSnapshot, nowIso) {
   const mergedDateRaw =
     incomingSnapshot.statusDateRaw || previousSnapshot?.statusDateRaw || "";
@@ -428,24 +339,6 @@ function detectSnapshotChange(previousSnapshot, currentSnapshot) {
 
   return { changed: false, reason: "no_meaningful_change" };
 }
-function buildStatusChangeMessage(snapshot) {
-  const dateText = formatDate(snapshot.statusDateRaw || snapshot.statusDateNorm);
-
-  if (snapshot.statusDescription && dateText) {
-    return `${snapshot.statusDescription} (maj: ${dateText}).`;
-  }
-
-  if (snapshot.statusDescription) {
-    return `${snapshot.statusDescription}.`;
-  }
-
-  if (dateText) {
-    return `Un changement a ete detecte (maj dossier: ${dateText}).`;
-  }
-
-  return "Un changement de dossier a ete detecte. Ouvre ANEF pour le detail.";
-}
-
 async function fetchCurrentDossierStatus() {
   const response = await fetch(CONFIG.API_ENDPOINT, {
     method: "GET",
@@ -570,28 +463,16 @@ async function processIncomingSnapshot({ incomingSnapshot, trigger, sendChangeNo
 
     if (
       sendChangeNotification &&
-      storage.lastNotifiedSnapshotSignature !== mergedSnapshot.signature
+      alertsEnabledFromStorage(storage) &&
+      storage.lastAlertedSnapshotSignature !== mergedSnapshot.signature
     ) {
-      await createNotification(
-        `anf-change-${Date.now()}`,
-        "ANEF: changement detecte",
-        buildStatusChangeMessage(mergedSnapshot)
-      );
-      updates.lastStatusChangeNotificationAt = nowIso;
-      updates.lastNotifiedSnapshotSignature = mergedSnapshot.signature;
+      setStatusChangeBadge();
+      updates.lastStatusAlertAt = nowIso;
+      updates.lastAlertedSnapshotSignature = mergedSnapshot.signature;
     }
   } else {
     updates.noUpdateStreak = previousStreak + 1;
     updates.lastNoUpdateAt = nowIso;
-  }
-
-  if (storage.authState === "expired") {
-    await createNotification(
-      `anf-auth-restored-${Date.now()}`,
-      "ANEF: session reconnectee",
-      "La session est active. La synchro et les alertes reprennent."
-    );
-    updates.lastAuthRecoveryNotificationAt = nowIso;
   }
 
   await chrome.storage.local.set(updates);
@@ -652,22 +533,6 @@ async function runSync({ trigger, sendChangeNotification = true }) {
 
     if (isAuthExpired) {
       setAuthExpiredBadge();
-
-      if (
-        shouldSendReminder(
-          storage.lastAuthNotificationAt,
-          CONFIG.AUTH_REMINDER_COOLDOWN_MINUTES
-        )
-      ) {
-        await createNotification(
-          `anf-auth-expired-${Date.now()}`,
-          "ANEF: session expiree",
-          "Session expiree detectee. Reconnexion FranceConnect automatique lancee."
-        );
-        updates.lastAuthNotificationAt = nowIso;
-      }
-
-      await startAutoLoginAttempt("auth_expired_sync");
     } else {
       setSyncErrorBadge();
     }
@@ -717,86 +582,6 @@ async function handleStatusFromPage(payload) {
   });
 }
 
-async function handleAutoLoginStatus(payload) {
-  const nowIso = new Date().toISOString();
-  const status = String(payload?.status || "progress");
-  const step = String(payload?.step || "unknown");
-  const error = String(payload?.error || "");
-  const url = String(payload?.url || "");
-
-  await chrome.storage.local.set({
-    lastAutoLoginStatus: status,
-    lastAutoLoginStep: step,
-    lastAutoLoginError: error,
-    lastAutoLoginEventAt: nowIso,
-  });
-
-  await recordSyncEvent({
-    createdAt: nowIso,
-    trigger: "autoLogin",
-    source: "autologin",
-    state: status === "failed" ? "error" : "ok",
-    hasUpdate: false,
-    changeReason: step,
-    dossierId: "",
-    statusDate: "",
-    statusCode: "",
-    errorMessage: error || url,
-  });
-}
-
-async function sendHourlyRecapNotification() {
-  const nowIso = new Date().toISOString();
-  const storage = await chrome.storage.local.get(STORAGE_KEYS);
-
-  let recentHistory = [];
-  try {
-    recentHistory = await getRecentSyncHistory(20);
-  } catch (error) {
-    console.log(
-      "Extension API Naturalisation : impossible de lire historique sync",
-      error?.message || String(error)
-    );
-  }
-
-  const oneHourAgoMs = Date.now() - 60 * 60 * 1000;
-  const lastHourEntries = recentHistory.filter((entry) => {
-    const time = new Date(entry.createdAt).getTime();
-    return !Number.isNaN(time) && time >= oneHourAgoMs;
-  });
-
-  const okCount = lastHourEntries.filter((entry) => entry.state === "ok").length;
-  const errorCount = lastHourEntries.filter((entry) => entry.state !== "ok").length;
-  const updateCount = lastHourEntries.filter((entry) => Boolean(entry.hasUpdate)).length;
-
-  const lastSyncLabel = formatDateTime(storage.lastSyncAt) || "inconnue";
-  const lastChangeLabel = formatDateTime(storage.lastStatusChangeAt) || "aucun";
-
-  let title = "ANEF: recap horaire";
-  let message = "";
-  let recapState = "ok";
-
-  if (storage.authState === "expired") {
-    title = "ANEF: session expiree";
-    message = `Session expiree. Derniere sync: ${lastSyncLabel}. Reconnexion auto FranceConnect en cours.`;
-    recapState = "auth_expired";
-  } else if (updateCount === 0) {
-    message = `Aucune mise a jour. Sync OK: ${okCount}, erreurs: ${errorCount}. Dernier changement: ${lastChangeLabel}.`;
-    recapState = "no_update";
-  } else {
-    message = `${updateCount} update(s) detectee(s) sur la derniere heure. Derniere sync: ${lastSyncLabel}.`;
-    recapState = "updates_detected";
-  }
-
-  await createNotification(`anf-hourly-${Date.now()}`, title, message);
-
-  await chrome.storage.local.set({
-    lastHourlyRecapAt: nowIso,
-    lastHourlyRecapState: recapState,
-    lastHourlyRecapMessage: message,
-  });
-}
-
 async function getDashboardState() {
   const storage = await chrome.storage.local.get(STORAGE_KEYS);
   let recentHistory = [];
@@ -828,22 +613,9 @@ async function getDashboardState() {
     lastNoUpdateAt: storage.lastNoUpdateAt || "",
     lastNoUpdateAtLabel: formatDateTime(storage.lastNoUpdateAt) || "Aucun",
     noUpdateStreak: Number(storage.noUpdateStreak || 0),
-    lastHourlyRecapAt: storage.lastHourlyRecapAt || "",
-    lastHourlyRecapAtLabel: formatDateTime(storage.lastHourlyRecapAt) || "Aucun",
-    lastHourlyRecapState: storage.lastHourlyRecapState || "",
-    lastHourlyRecapMessage: storage.lastHourlyRecapMessage || "",
-    autoLoginEnabled: storage.autoLoginEnabled !== false,
-    autoLoginFiscalMasked: maskSensitive(storage.envFranceConnectFiscalNumber, 3),
-    lastAutoLoginAttemptAt: storage.lastAutoLoginAttemptAt || "",
-    lastAutoLoginAttemptAtLabel:
-      formatDateTime(storage.lastAutoLoginAttemptAt) || "Aucune",
-    lastAutoLoginStatus: storage.lastAutoLoginStatus || "idle",
-    lastAutoLoginStep: storage.lastAutoLoginStep || "-",
-    lastAutoLoginError: storage.lastAutoLoginError || "",
-    lastAutoLoginReason: storage.lastAutoLoginReason || "",
-    lastAutoLoginEventAt: storage.lastAutoLoginEventAt || "",
-    lastAutoLoginEventAtLabel:
-      formatDateTime(storage.lastAutoLoginEventAt) || "Aucun",
+    alertsEnabled: alertsEnabledFromStorage(storage),
+    lastStatusAlertAt: storage.lastStatusAlertAt || "",
+    lastStatusAlertAtLabel: formatDateTime(storage.lastStatusAlertAt) || "Aucun",
     recentSyncs: recentHistory.map((entry) => ({
       id: entry.id,
       createdAt: entry.createdAt,
@@ -856,69 +628,77 @@ async function getDashboardState() {
     })),
   };
 }
-function ensureAlarms() {
-  chrome.alarms.create(CONFIG.STATUS_SYNC_ALARM, {
-    periodInMinutes: CONFIG.STATUS_SYNC_INTERVAL_MINUTES,
-  });
 
-  chrome.alarms.create(CONFIG.HOURLY_RECAP_ALARM, {
-    when: Date.now() + CONFIG.HOURLY_RECAP_INTERVAL_MINUTES * 60 * 1000,
-    periodInMinutes: CONFIG.HOURLY_RECAP_INTERVAL_MINUTES,
-  });
+async function ensureAlarms() {
+  await ensureAlertDefaults();
 
+  if (await getAlertsEnabled()) {
+    chrome.alarms.create(CONFIG.STATUS_SYNC_ALARM, {
+      periodInMinutes: CONFIG.STATUS_SYNC_INTERVAL_MINUTES,
+    });
+  } else {
+    await chrome.alarms.clear(CONFIG.STATUS_SYNC_ALARM).catch(() => {
+      // ignore
+    });
+  }
+
+  chrome.alarms.clear(CONFIG.LEGACY_HOURLY_RECAP_ALARM).catch(() => {
+    // ignore
+  });
   chrome.alarms.clear(CONFIG.LEGACY_DAILY_ALARM).catch(() => {
     // ignore
   });
 }
 
+async function bootExtension(trigger) {
+  await cleanupLegacyStorage();
+  await ensureAlarms();
+  if (await getAlertsEnabled()) {
+    await runSync({ trigger, sendChangeNotification: false });
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  ensureAlarms();
-  ensureAutoLoginEnvDefaults().catch(() => {
+  bootExtension("onInstalled").catch(() => {
     // ignore
   });
-  runSync({ trigger: "onInstalled", sendChangeNotification: false });
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  ensureAlarms();
-  ensureAutoLoginEnvDefaults().catch(() => {
+  bootExtension("onStartup").catch(() => {
     // ignore
   });
-  runSync({ trigger: "onStartup", sendChangeNotification: false });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === CONFIG.STATUS_SYNC_ALARM) {
-    runSync({ trigger: "periodicStatusSync", sendChangeNotification: true });
+    getAlertsEnabled().then((enabled) => {
+      if (enabled) {
+        runSync({ trigger: "periodicStatusSync", sendChangeNotification: true });
+      }
+    });
     return;
   }
-
-  if (alarm.name === CONFIG.HOURLY_RECAP_ALARM) {
-    sendHourlyRecapNotification();
-  }
-});
-
-chrome.notifications.onClicked.addListener((notificationId) => {
-  if (!notificationId.startsWith("anf-")) return;
-  chrome.tabs.create({ url: CONFIG.ANEF_HOME_URL });
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const messageType = message?.type;
 
-  if (messageType === "ANF_TEST_NOTIFICATION") {
-    createNotification(
-      `anf-test-${Date.now()}`,
-      "ANEF: test notification",
-      "Si tu vois ceci, les notifications Brave/Chrome fonctionnent."
-    )
-      .then((notificationId) => sendResponse({ ok: Boolean(notificationId) }))
+  if (messageType === "ANF_SET_ALERTS_ENABLED") {
+    const enabled = message?.payload?.enabled === true;
+    setAlertsEnabled(enabled)
+      .then((settings) => sendResponse({ ok: true, settings }))
       .catch((error) => {
-        console.log(
-          "Extension API Naturalisation : erreur test notification",
-          error?.message || String(error)
-        );
-        sendResponse({ ok: false });
+        sendResponse({ ok: false, error: error?.message || String(error) });
+      });
+    return true;
+  }
+
+  if (messageType === "ANF_GET_ALERTS_SETTINGS") {
+    getAlertsEnabled()
+      .then((alertsEnabled) => sendResponse({ ok: true, alertsEnabled }))
+      .catch((error) => {
+        sendResponse({ ok: false, error: error?.message || String(error) });
       });
     return true;
   }
@@ -956,36 +736,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           error?.message || String(error)
         );
         sendResponse({ ok: false });
-      });
-    return true;
-  }
-
-  if (messageType === "ANF_AUTO_LOGIN_STATUS") {
-    handleAutoLoginStatus(message?.payload)
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          error: error?.message || String(error),
-        });
-      });
-    return true;
-  }
-
-  if (messageType === "ANF_SET_AUTO_LOGIN_ENV") {
-    const fiscalNumber = String(message?.payload?.fiscalNumber || "").trim();
-    const password = String(message?.payload?.password || "");
-    const enabled = message?.payload?.enabled !== false;
-
-    chrome.storage.local
-      .set({
-        autoLoginEnabled: enabled,
-        envFranceConnectFiscalNumber: fiscalNumber,
-        envFranceConnectPassword: password,
-      })
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) => {
-        sendResponse({ ok: false, error: error?.message || String(error) });
       });
     return true;
   }
