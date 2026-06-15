@@ -105,6 +105,45 @@ function buildSnapshotSignature(snapshot) {
   return `enc:${normalizeEncryptedStatus(snapshot?.encryptedStatus)}`;
 }
 
+function getStageBadgeText(code) {
+  const normalized = normalizeStatusCode(code);
+
+  if (!normalized || normalized === "code_non_reconnu") return "";
+  if (normalized === "draft") return "1";
+  if (normalized === "dossier_depose") return "2";
+  if (normalized.startsWith("verification_")) return "3";
+  if (normalized.startsWith("instruction_recepisse")) return "5";
+  if (normalized.startsWith("instruction_")) return "4";
+  if (normalized.startsWith("ea_") || normalized.includes("date_ea")) return "6";
+  if (normalized.startsWith("prop_decision_pref_")) return "7";
+  if (
+    normalized === "controle_en_attente_pec" ||
+    normalized === "controle_pec_a_faire" ||
+    normalized.startsWith("scec_") ||
+    normalized === "non_applicable"
+  ) {
+    return "9.2";
+  }
+  if (normalized.startsWith("controle_")) return "9.1";
+  if (
+    normalized.startsWith("decret_") ||
+    normalized === "transmis_a_ac" ||
+    normalized.includes("insertion_decret")
+  ) {
+    return "10";
+  }
+  if (
+    normalized.startsWith("decision_") ||
+    normalized.startsWith("css_") ||
+    normalized.includes("irrecevabilite") ||
+    normalized === "demande_traitee"
+  ) {
+    return "12";
+  }
+
+  return "4";
+}
+
 function alertsEnabledFromStorage(storage) {
   return storage?.alertsEnabled !== false;
 }
@@ -131,16 +170,52 @@ async function setAlertsEnabled(enabled) {
   const alertsEnabled = Boolean(enabled);
   await chrome.storage.local.set({ alertsEnabled });
   await ensureAlarms();
-  if (!alertsEnabled) clearBadge();
+  await restoreStatusBadge();
   return { alertsEnabled };
 }
 
-function setStatusChangeBadge() {
-  chrome.action.setBadgeText({ text: "!" });
-  chrome.action.setBadgeBackgroundColor({ color: "#0b5aa8" });
+function setStepBadge(code, description, titlePrefix = "Suivi Naturalisation") {
+  const badgeText = getStageBadgeText(code);
+  if (!badgeText) {
+    clearBadge();
+    return;
+  }
+
+  chrome.action.setBadgeText({ text: badgeText });
+  chrome.action.setBadgeBackgroundColor({ color: "#f4b400" });
+  if (chrome.action.setBadgeTextColor) {
+    try {
+      const badgeTextColor = chrome.action.setBadgeTextColor({ color: "#111827" });
+      if (badgeTextColor?.catch) {
+        badgeTextColor.catch(() => {
+          // ignore
+        });
+      }
+    } catch (_error) {
+      // ignore
+    }
+  }
+
+  const detail = String(description || "").trim();
   chrome.action.setTitle({
-    title: "Nouveau statut detecte dans le suivi naturalisation",
+    title: `${titlePrefix}: etape ${badgeText}${detail ? ` - ${detail}` : ""}`,
   });
+}
+
+async function restoreStatusBadge() {
+  const storage = await chrome.storage.local.get([
+    "lastKnownStatusCode",
+    "lastKnownStatusDescription",
+  ]);
+  setStepBadge(storage.lastKnownStatusCode, storage.lastKnownStatusDescription);
+}
+
+function setStatusChangeBadge(snapshot) {
+  setStepBadge(
+    snapshot?.statusCodeNorm || snapshot?.statusCode,
+    snapshot?.statusDescription,
+    "Nouveau statut detecte"
+  );
 }
 
 function setAuthExpiredBadge() {
@@ -436,7 +511,7 @@ async function processIncomingSnapshot({ incomingSnapshot, trigger, sendChangeNo
   const hasUpdate = hasPreviousSnapshot && change.changed;
 
   await putStatusSnapshot(mergedSnapshot);
-  clearBadge();
+  setStepBadge(mergedSnapshot.statusCodeNorm, mergedSnapshot.statusDescription);
 
   const updates = {
     lastSyncAt: nowIso,
@@ -466,7 +541,7 @@ async function processIncomingSnapshot({ incomingSnapshot, trigger, sendChangeNo
       alertsEnabledFromStorage(storage) &&
       storage.lastAlertedSnapshotSignature !== mergedSnapshot.signature
     ) {
-      setStatusChangeBadge();
+      setStatusChangeBadge(mergedSnapshot);
       updates.lastStatusAlertAt = nowIso;
       updates.lastAlertedSnapshotSignature = mergedSnapshot.signature;
     }
@@ -595,7 +670,7 @@ async function getDashboardState() {
     );
   }
 
-  return {
+  const state = {
     authState: storage.authState || "unknown",
     lastSyncAt: storage.lastSyncAt || "",
     lastSyncAtLabel: formatDateTime(storage.lastSyncAt) || "Jamais",
@@ -627,6 +702,8 @@ async function getDashboardState() {
       errorMessage: entry.errorMessage || "",
     })),
   };
+  setStepBadge(state.lastKnownStatusCode, state.lastKnownStatusDescription);
+  return state;
 }
 
 async function ensureAlarms() {
@@ -653,6 +730,7 @@ async function ensureAlarms() {
 async function bootExtension(trigger) {
   await cleanupLegacyStorage();
   await ensureAlarms();
+  await restoreStatusBadge();
   if (await getAlertsEnabled()) {
     await runSync({ trigger, sendChangeNotification: false });
   }

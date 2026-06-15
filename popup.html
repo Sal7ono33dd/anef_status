@@ -439,6 +439,66 @@
         background: #f97316;
       }
 
+      .stats-link {
+        display: grid;
+        grid-template-columns: 32px 1fr 18px;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+        padding: 10px 12px;
+        border: 1px solid #c8d9ed;
+        border-radius: 8px;
+        background: linear-gradient(180deg, #eef6ff, #e4effb);
+        color: #092955;
+        text-decoration: none;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+      }
+
+      .stats-link:hover {
+        border-color: #8fb9e8;
+        background: #e8f3ff;
+      }
+
+      .stats-icon {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #0b5aa8;
+      }
+
+      .stats-icon svg,
+      .stats-external svg {
+        width: 17px;
+        height: 17px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .stats-title {
+        margin: 0;
+        color: #092955;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .stats-subtitle {
+        margin: 2px 0 0;
+        color: #57708f;
+        font-size: 10px;
+        line-height: 1.25;
+      }
+
+      .stats-external {
+        color: #7b91ad;
+      }
+
       .footer-link {
         margin-top: 16px;
         color: #8a93aa;
@@ -563,10 +623,30 @@
           <span id="alerts-status">Verification auto activee</span>
         </div>
 
+        <a
+          id="community-link"
+          class="stats-link"
+          href="https://letranger-dev.github.io/anef-extension/"
+          target="_blank"
+          rel="noreferrer"
+          title="Ouvrir les statistiques communautaires"
+        >
+          <span class="stats-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 19V9"></path><path d="M12 19V5"></path><path d="M19 19v-7"></path><path d="M3 19h18"></path></svg>
+          </span>
+          <span>
+            <span class="stats-title">Statistiques communautaires</span>
+            <span class="stats-subtitle">Donnees 100% anonymes - Comparez votre progression</span>
+          </span>
+          <span class="stats-external" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M7 17 17 7"></path><path d="M9 7h8v8"></path><path d="M5 5v14h14"></path></svg>
+          </span>
+        </a>
+
         <div id="result" class="result"></div>
 
         <footer class="footer-link">
-          <a href="https://letranger-dev.github.io/anef-extension/" target="_blank" rel="noreferrer">
+          <a id="footer-link-url" href="https://letranger-dev.github.io/anef-extension/" target="_blank" rel="noreferrer">
             https://letranger-dev.github.io/anef-extension/
           </a>
         </footer>

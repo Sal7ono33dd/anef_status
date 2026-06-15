@@ -8,6 +8,8 @@
   <li>Suppression de l'auto-connexion Impots/FranceConnect et des permissions associees.</li>
   <li>Bouton parametres transforme en reglage Alertes activees/desactivees.</li>
   <li>Ajout du lien officiel en bas du popup: https://letranger-dev.github.io/anef-extension/.</li>
+  <li>Badge numerique sur l'icone de l'extension avec le numero de l'etape courante.</li>
+  <li>Carte Statistiques communautaires cliquable qui ouvre le site dans une nouvelle fenetre.</li>
   <li>Synchronisation automatique en arriere-plan uniquement quand les alertes sont activees.</li>
   <li>Fallback visuel sur l'icone de l'extension en cas de session expiree ou erreur de synchro.</li>
   <li>Icônes de statut dans la frise plus lisibles et plus explicatives.</li>

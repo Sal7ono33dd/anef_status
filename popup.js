@@ -23,6 +23,8 @@
   const alertsDetailEl = document.getElementById("alerts-detail");
   const alertStatusEl = document.getElementById("alert-status");
   const alertsStatusEl = document.getElementById("alerts-status");
+  const communityLink = document.getElementById("community-link");
+  const footerLink = document.getElementById("footer-link-url");
   const resultEl = document.getElementById("result");
 
   let currentCode = "";
@@ -82,11 +84,16 @@
     if (normalized.startsWith("prop_decision_pref_")) {
       return { label: "Etape 7/12", value: 7, progress: 58 };
     }
+    if (
+      normalized === "controle_en_attente_pec" ||
+      normalized === "controle_pec_a_faire" ||
+      normalized.startsWith("scec_") ||
+      normalized === "non_applicable"
+    ) {
+      return { label: "Etape 9.2/12", value: 9.2, progress: 76 };
+    }
     if (normalized.startsWith("controle_")) {
       return { label: "Etape 9.1/12", value: 9.1, progress: 72 };
-    }
-    if (normalized.startsWith("scec_") || normalized === "non_applicable") {
-      return { label: "Etape 9.2/12", value: 9.2, progress: 76 };
     }
     if (
       normalized.startsWith("decret_") ||
@@ -249,6 +256,37 @@
     statusCodeEl.textContent = formatCode(currentCode);
   }
 
+  function openExternalWindow(event) {
+    event.preventDefault();
+    const url = event.currentTarget?.href || "https://letranger-dev.github.io/anef-extension/";
+
+    try {
+      if (chrome.windows?.create) {
+        chrome.windows.create(
+          {
+            url,
+            type: "popup",
+            width: 980,
+            height: 760,
+            focused: true,
+          },
+          () => {
+            if (chrome.runtime.lastError) {
+              window.open(url, "_blank", "noopener,noreferrer");
+              return;
+            }
+            window.close();
+          }
+        );
+        return;
+      }
+    } catch (_error) {
+      // fallback below
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   versionPill.textContent = `v${EXTENSION_VERSION}`;
   refreshBtn.addEventListener("click", forceSync);
   settingsBtn.addEventListener("click", toggleSettings);
@@ -256,6 +294,8 @@
   copyBtn.addEventListener("click", copyCode);
   eyeBtn.addEventListener("click", toggleCode);
   rexBtn.addEventListener("click", () => setResult("Mon REX arrive bientot.", "ok"));
+  communityLink.addEventListener("click", openExternalWindow);
+  footerLink.addEventListener("click", openExternalWindow);
 
   loadState({ silent: false });
   setInterval(() => loadState({ silent: true }), 20000);
