@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="primary">#2D6CDF</color>
-    <color name="onPrimary">#FFFFFF</color>
-    <color name="surface">#F5F8FF</color>
-    <color name="onSurface">#1F2937</color>
-    <color name="onSurfaceMuted">#475569</color>
-</resources>
